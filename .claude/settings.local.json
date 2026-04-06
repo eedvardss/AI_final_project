@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 \"C:/Users/eseli/.claude/plugins/marketplaces/ui-ux-pro-max-skill/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"minimalism swiss style data visualization tool\" --design-system -p \"Deep Scan\" -f markdown)",
+      "Bash(python \"C:/Users/eseli/.claude/plugins/marketplaces/ui-ux-pro-max-skill/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"minimalism swiss style data visualization tool\" --design-system -p \"Deep Scan\" -f markdown)",
+      "Bash(python3 \"C:/Users/eseli/.claude/plugins/marketplaces/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py\" \"minimalism swiss style data visualization tool\" --design-system -p \"Deep Scan\" -f markdown)",
+      "Bash(python3 \"C:/Users/eseli/.claude/plugins/marketplaces/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py\" \"minimalism swiss\" --domain style)"
+    ]
+  }
+}

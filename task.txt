@@ -1,0 +1,128 @@
+Final Group Task - Explore and Exploit 2D Environment
+
+Task: Explore API which has two real value components (think x and y).
+
+You will have 200 exploratory steps - meaning any values of x and y will be acceptable.
+
+Based on your exploratory results  you have to provide a strategy of 10 exploitation moves - limitation, you can use only integer values for both and you can only move +-1 on x and y with each move. In other words you start somewhere and you exploit that area.
+
+Extra Limitation for 2026 project - NO GOING BACK TO ANY VISITED SQUARES - once you visit that square it is off limits
+
+
+API Access - turned off after spring 2026:
+
+Your exploration space should be from -100 to 100 for both x and y (so roughly 40,000 possible discrete values, but you can use floats to explore as well in that range)
+
+Address for testing is here: http://157.180.73.240:8080/<x:double>/<y:double>;
+
+<double> means you can use any integer or double value here for x and for y
+
+So for example valid API call would be http://157.180.73.240:8080/3.14/2.7 - where 3.14 is x and 2.7 is y
+
+Also valid call would be: http://157.180.73.240:8080/0/0 where both x and y are 0
+
+Negative values are allowed as well such as: http://157.180.73.240:8080/-3.1/-351
+
+More APIS for testing:
+
+http://157.180.73.240:8081
+
+http://157.180.73.240:8082
+
+just add /x/y where x and y can be any int or float
+
+for example http://157.180.73.240:8082/0/0
+
+again you only care about -100 to 100 space
+
+Something similar to 8081 and 8082 will be on exam APIs, but there could be other tricks, remember you know almost nothing about the solution space.
+
+
+Constraints:
+
+You are not expected to explore over -100.. to 100 for either x or y. 
+
+In other words the best solution will be in in this area where x and y are between -100 and 100.
+Actual Exam/Testing date:
+
+On Thursday the 24th of April, I will open the REAL API addressses/ports at 15:50 for 100 minutes - really 1-2minutes should be enough to run (200+10)*3 = 630 calls
+
+200 exploratory steps will be on honor principle - but of course I will see logs , if someone is trying 500k exploratory accesses they will not get to exploitation step...
+
+I reserve the right to introduce API keys for each group - this would mean you'd have to add additional parameter to your calls
+
+Since you are in a team of 1-3 persons, only 1 person has to run the program and get answers.
+
+REAL EXAM APIs:
+
+http://157.180.73.240:22001    /x/y - where x and y are floats (or integers)
+
+http://157.180.73.240:22002   /x/y - where x and y are floats (or integers)
+
+http://157.180.73.240:22003   /x/y - where x and y are floats (or integers)
+
+http://157.180.73.240:22004   /x/y - where x and y are floats (or integers)
+
+http://157.180.73.240:22005   /x/y - where x and y are floats (or integers)
+
+Your search space should be limited to -100 to 100 for both parameters (inclusive).
+
+API will give fixed and smallish answers beyond those limits..
+
+
+Submit:
+
+Submit (1 person representing your team of 1-3 persons) Your source code in ANY "normal" language (C,C++, C#, Python,Java,Scala, PHP,Javascript,Kotlin,Rust,Go, Lua,Swift,Dart) with names of ALL 1-3 students as comments in first lines of main source code.
+
+Submit your 200 exploratory moves as explore_apiportnumber.csv - as txt(that is csv) both values (int or double) comma separated pairs.
+
+
+1.51,12.66
+
+-6.342,0.5
+
+5,3.15 
+
+...197 more rows
+
+Also submit your ten moves as moves_apiportnumber.csv - again(you need a starting point as an integer pair)
+
+1,12
+
+2,11
+
+1,10
+
+0,10
+
+-1,11
+
+.. 5 more rows
+
+YOU ARE NOT ALLOWED TO EXPLOIT SAME AREA TWICE - meaning it will not count to submit same (3,5) 10x.
+
+You must have 10 connected steps (in the +-1 x,y directions, so 8 potential directions), which collect the highest possible z values.
+
+So to speak, you "land" on a planet, collect "dust," and then take 9 more steps, visiting a total of 10 coordinates. You are not allowed to "take off again" and fly to a different region.
+
+To avoid making life unnecessarily complicated, it is allowed to step back onto a previously visited point, but that still counts as a step and does not give a new z value, so it would be a wasted move.
+
+Therefore, it's much more optimal not to step onto previously visited tiles — at least usually.
+
+Of course, an exception might be a situation where, say, there are only 7 tiles in the area with positive values and the rest are negative ("lava"). In that case, it’s okay to simply stop at 7 or step back onto a previously visited tile.
+
+Another possible case could be a cross-shaped situation like this:
+
+0X0
+XXX
+0X0
+
+If 0s are negative but Xs are positive, then it would make sense to walk only through the Xs, and it could be beneficial to enter an X tile that has already been visited
+
+To make things even more complicated it is possible to image situation, where say there are two close areas with high positive values but there are negative values  between, then it might be useful to STEP into negative values for a few steps.
+
+Finally, submit the answer in the text field of your exploits - meaning sum of all 10 move results - again no repeats! So answer could be something like 50000, 325, 23.261 for those submitting all 3 API exploits.
+
+Again SUBMIT answer and then well commented sourcecode, moves_22000.csv, moves_22001.csv, moves_22002, explore_22000.csv, explore_22001.csv, explore_22002.csv on April 24th after 15:00 !
+
+

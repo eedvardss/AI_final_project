@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI HW2 Terminal</title>
+
+  <!-- Fonts: Inter (display/labels) + JetBrains Mono (data/code) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════ HEADER ═══════════════════ -->
+  <header class="site-header">
+    <div class="header-brand">
+      <span class="brand-title">Kristers Krīgers</span>
+      <span class="brand-sub">Edvards Markuss Selikovs</span>
+      <span class="brand-sub">Kristofers Sondors</span>
+    </div>
+  </header>
+
+  <!-- ═══════════════════ MAIN LAYOUT ═══════════════════ -->
+  <main class="main-layout">
+
+    <!-- ── LEFT: Heatmap Canvas ── -->
+    <section class="canvas-section">
+      <div class="canvas-label-row">
+        <span class="canvas-info" id="canvas-info">awaiting data…</span>
+      </div>
+      <div class="canvas-wrapper">
+        <canvas id="heatmap" width="600" height="600"></canvas>
+      </div>
+    </section>
+
+    <!-- ── RIGHT: Controls + Results ── -->
+    <aside class="control-sidebar">
+
+      <!-- API Config -->
+      <div class="panel" id="panel-config">
+        <div class="panel-body">
+          <label class="field-label">Environment</label>
+          <div class="btn-group-env" id="env-toggle">
+            <button class="env-btn active" data-env="test">TEST</button>
+            <button class="env-btn" data-env="exam">EXAM</button>
+          </div>
+
+          <label class="field-label">Port</label>
+          <select id="port-select" class="field-select">
+            <optgroup label="── TEST PORTS ──">
+              <option value="8080">8080</option>
+              <option value="8081">8081</option>
+              <option value="8082">8082</option>
+            </optgroup>
+            <optgroup label="── EXAM PORTS ──">
+              <option value="22001">22001</option>
+              <option value="22002">22002</option>
+              <option value="22003">22003</option>
+              <option value="22004">22004</option>
+              <option value="22005">22005</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="panel" id="panel-controls">
+        <div class="panel-header">
+          <span class="panel-tag">RUN CONTROLS</span>
+        </div>
+        <div class="panel-body">
+          <button class="run-btn" id="btn-explore">▶ RUN EXPLORATION</button>
+          <button class="run-btn secondary" id="btn-exploit" disabled>▶ RUN EXPLOITATION</button>
+
+          <div class="progress-wrap" id="progress-wrap" style="display:none">
+            <div class="progress-label">
+              <span id="progress-phase">PHASE 1</span>
+              <span id="progress-count">0 / 200</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+            </div>
+          </div>
+
+          <div class="cors-notice" id="cors-notice" style="display:none">
+            ⚠ CORS blocked. Run <strong>node cors-proxy.js</strong> and reload.
+          </div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="panel" id="panel-results">
+        <div class="panel-header">
+          <span class="panel-tag">RESULTS</span>
+        </div>
+        <div class="panel-body">
+          <div class="best-point-display">
+            <span class="result-label">PEAK FOUND</span>
+            <span class="result-value" id="best-point">—</span>
+          </div>
+
+          <div class="path-table-wrap">
+            <table class="path-table" id="path-table">
+              <thead>
+                <tr>
+                  <th>#</th><th>X</th><th>Y</th><th>Z</th>
+                </tr>
+              </thead>
+              <tbody id="path-tbody">
+                <tr class="empty-row">
+                  <td colspan="4">no exploitation data yet</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="total-sum-display" id="total-sum-wrap" style="display:none">
+            <span class="result-label">TOTAL SUM</span>
+            <span class="total-val" id="total-sum">—</span>
+          </div>
+
+          <div class="export-row">
+            <button class="export-btn" id="btn-export-explore" disabled>
+              ↓ explore_<span class="port-inline">8080</span>.csv
+            </button>
+            <button class="export-btn" id="btn-export-moves" disabled>
+              ↓ moves_<span class="port-inline">8080</span>.csv
+            </button>
+            <button class="export-btn" id="btn-export-debug">
+              ↓ debug_<span class="port-inline">8080</span>.json
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- ═══════════════════ LOG PANEL ═══════════════════ -->
+  <footer class="log-footer">
+    <div class="log-header-row">
+      <span class="panel-tag">LIVE LOG</span>
+      <button class="log-clear-btn" id="btn-clear-log">CLR</button>
+    </div>
+    <div class="log-body" id="log-body">
+      <div class="log-entry info">System ready. Select environment/port and press RUN EXPLORATION.</div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

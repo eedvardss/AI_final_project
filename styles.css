@@ -1,0 +1,735 @@
+/* ============================================================
+   AI HW2 — styles.css
+   Theme: Minimalism & Swiss Style
+   Fonts: Inter (display/labels) + JetBrains Mono (data/body)
+   Grid: 8px base unit, 12-column strict layout
+   ============================================================ */
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Design Tokens — Swiss Minimalism ── */
+:root {
+  /* Surfaces */
+  --bg-base:      #F5F5F5;
+  --bg-panel:     #FFFFFF;
+  --bg-panel-alt: #F0F0F0;
+  --bg-input:     #FFFFFF;
+
+  /* Borders */
+  --border:        #CCCCCC;
+  --border-strong: #000000;
+  --border-glow:   transparent;
+
+  /* Typography */
+  --text-primary: #0A0A0A;
+  --text-muted:   #555555;
+  --text-dim:     #AAAAAA;
+
+  /* Single Swiss accent — precise technical blue */
+  --accent:        #0038A8;
+  --accent-glow:   transparent;
+  --accent-dark:   #002680;
+  --accent-bright: #0050E6;
+
+  /* Functional semantic colors */
+  --orange:        #C94400;
+  --orange-dim:    rgba(201,68,0,0.08);
+  --red:           #C00020;
+  --green:         #006030;
+  --yellow:        #7A5E00;
+
+  /* Typography */
+  --font-display: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Geometry — Swiss: 0 border radius, sharp corners */
+  --radius:       0px;
+  --panel-shadow: none;
+}
+
+/* ── Base ── */
+html, body {
+  height: 100%;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Remove decorative noise overlay */
+body::before { display: none; }
+
+/* ── Header ── */
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 48px;
+  background: var(--bg-panel);
+  border-bottom: 2px solid var(--border-strong);
+  position: relative;
+  z-index: 10;
+}
+
+.header-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.brand-icon {
+  font-size: 14px;
+  color: var(--accent);
+  line-height: 1;
+  /* Remove glow */
+  text-shadow: none;
+}
+
+.brand-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  text-shadow: none;
+  text-transform: none;
+}
+
+.brand-sub {
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  font-weight: 700;
+  text-transform: none;
+}
+
+/* Status indicators — clean, no animation unless running */
+.status-idle    { color: var(--text-dim);   font-family: var(--font-display); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+.status-running { color: var(--accent);     font-family: var(--font-display); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; animation: pulse 1.2s step-start infinite; }
+.status-done    { color: var(--green);      font-family: var(--font-display); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+.status-error   { color: var(--red);        font-family: var(--font-display); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+@keyframes pulse {
+  0%, 49%  { opacity: 1;   }
+  50%, 100%{ opacity: 0.3; }
+}
+
+/* ── Main Layout ── */
+.main-layout {
+  display: grid;
+  grid-template-columns: 620px 1fr;
+  gap: 0;
+  height: calc(100vh - 48px - 180px);
+  min-height: 640px;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* ── Canvas Section ── */
+.canvas-section {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border-right: 1px solid var(--border);
+  background: var(--bg-base);
+}
+
+.canvas-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.canvas-info {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.canvas-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+}
+
+#heatmap {
+  display: block;
+  border: 1px solid var(--border-strong);
+  box-shadow: none;
+  image-rendering: pixelated;
+  border-radius: 0;
+  width: 600px;
+  height: 600px;
+}
+
+/* ── Sidebar ── */
+.control-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+}
+
+.control-sidebar::-webkit-scrollbar { width: 4px; }
+.control-sidebar::-webkit-scrollbar-track { background: transparent; }
+.control-sidebar::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ── Panel ── */
+.panel {
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-header {
+  padding: 8px 16px;
+  background: var(--bg-panel-alt);
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Swiss panel tag — small caps, precise tracking */
+.panel-tag {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* ── Form Fields ── */
+.field-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.field-label.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.field-select {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 0;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23555'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+.field-select:focus,
+.field-select:hover {
+  border-color: var(--text-primary);
+  outline: none;
+}
+
+.field-select optgroup {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* ── Env Toggle ── */
+.btn-group-env {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--border-strong);
+}
+
+.env-btn {
+  background: var(--bg-input);
+  border: none;
+  border-right: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-transform: uppercase;
+}
+
+.env-btn:last-child { border-right: none; }
+
+.env-btn:hover { background: var(--bg-panel-alt); color: var(--text-primary); }
+
+.env-btn.active {
+  background: var(--text-primary);
+  color: var(--bg-panel);
+  box-shadow: none;
+}
+
+/* ── API URL display ── */
+.api-url-display {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-primary);
+  padding: 6px 10px;
+  border-radius: 0;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+  font-family: var(--font-mono);
+}
+
+#url-port {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Toggle Switch — Swiss: square track ── */
+.toggle-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--text-dim);
+  border-radius: 0;
+  top: 3px;
+  left: 3px;
+  transition: left 0.15s, background 0.15s;
+}
+
+.toggle-switch input:checked + .toggle-track {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.toggle-switch input:checked + .toggle-track::after {
+  background: var(--bg-panel);
+  left: 19px;
+  box-shadow: none;
+}
+
+/* ── Delay Slider ── */
+.delay-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2px;
+  background: var(--border);
+  border-radius: 0;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--text-primary);
+  border-radius: 0;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background 0.15s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+#delay-val {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  min-width: 44px;
+  text-align: right;
+  font-weight: 600;
+}
+
+/* ── Run Buttons — Swiss: solid fill on hover ── */
+.run-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  padding: 12px;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+}
+
+/* Remove sliding pseudo-element — replace with direct fill */
+.run-btn::before { display: none; }
+
+.run-btn:hover:not(:disabled) {
+  background: var(--text-primary);
+  color: var(--bg-panel);
+  box-shadow: none;
+}
+
+.run-btn.secondary {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.run-btn.secondary::before { display: none; }
+
+.run-btn.secondary:hover:not(:disabled) {
+  background: var(--text-primary);
+  color: var(--bg-panel);
+  box-shadow: none;
+}
+
+.run-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--text-dim);
+  background: transparent;
+}
+
+.run-btn.running {
+  background: var(--text-primary);
+  color: var(--bg-panel);
+  animation: none;
+}
+
+/* ── Progress ── */
+.progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-display);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.progress-track {
+  height: 3px;
+  background: var(--border);
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--text-primary);
+  border-radius: 0;
+  transition: width 0.25s ease;
+  box-shadow: none;
+}
+
+/* ── CORS Notice ── */
+.cors-notice {
+  font-size: 11px;
+  color: var(--orange);
+  background: var(--orange-dim);
+  border: 1px solid var(--orange);
+  border-radius: 0;
+  padding: 8px 10px;
+  line-height: 1.6;
+  font-family: var(--font-mono);
+}
+
+/* ── Results ── */
+.best-point-display {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.result-label {
+  font-family: var(--font-display);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.result-value {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ── Path Table ── */
+.path-table-wrap {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.path-table-wrap::-webkit-scrollbar { width: 3px; }
+.path-table-wrap::-webkit-scrollbar-thumb { background: var(--border); }
+
+.path-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.path-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel-alt);
+  z-index: 1;
+}
+
+.path-table th {
+  padding: 6px 8px;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  font-weight: 700;
+  border-bottom: 1px solid var(--border-strong);
+  text-transform: uppercase;
+}
+
+.path-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.path-table tr:last-child td { border-bottom: none; }
+
+.path-table tr.step-row:hover td { background: var(--bg-panel-alt); }
+
+.path-table td.step-num  { color: var(--text-muted); font-size: 11px; }
+.path-table td.step-xy   { color: var(--accent); font-weight: 600; }
+.path-table td.step-z    { color: var(--text-primary); font-weight: 500; }
+.path-table td.step-z.negative { color: var(--red); }
+
+.path-table tr.start-row td { background: rgba(0,0,0,0.03); }
+.path-table tr.start-row td.step-num { color: var(--text-primary); font-weight: 700; }
+
+.empty-row td {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 16px;
+  font-size: 11px;
+}
+
+/* ── Total Sum ── */
+.total-sum-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--text-primary);
+  border: none;
+  border-radius: 0;
+  padding: 12px 14px;
+}
+
+.total-sum-display .result-label {
+  color: rgba(255,255,255,0.6);
+}
+
+.total-val {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: #FFFFFF;
+  text-shadow: none;
+  letter-spacing: 0.04em;
+}
+
+/* ── Export Buttons ── */
+.export-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--border);
+}
+
+.export-btn {
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 9px 6px;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.export-btn:last-child { border-right: none; }
+
+.export-btn:hover:not(:disabled) {
+  background: var(--text-primary);
+  color: var(--bg-panel);
+}
+
+.export-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.port-inline { color: var(--accent); }
+
+/* ── Log Footer ── */
+.log-footer {
+  height: 180px;
+  background: var(--bg-panel);
+  border-top: 2px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 5;
+}
+
+.log-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  background: var(--bg-panel-alt);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.log-clear-btn {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  text-transform: uppercase;
+}
+
+.log-clear-btn:hover {
+  background: var(--red);
+  color: #FFFFFF;
+  border-color: var(--red);
+}
+
+.log-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.log-body::-webkit-scrollbar { width: 3px; }
+.log-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 0; }
+
+.log-entry {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-entry.info    { color: var(--text-primary); }
+.log-entry.phase   { color: var(--accent); font-weight: 600; }
+.log-entry.explore { color: var(--text-muted); }
+.log-entry.exploit { color: var(--orange); }
+.log-entry.success { color: var(--green); font-weight: 600; }
+.log-entry.warning { color: var(--yellow); }
+.log-entry.error   { color: var(--red); }
+.log-entry.highlight { color: var(--text-primary); font-weight: 700; }
+
+/* ── Global Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 0; }
+
+/* ── Responsive ── */
+@media (max-width: 1100px) {
+  .main-layout {
+    grid-template-columns: 560px 1fr;
+  }
+  #heatmap {
+    width: 540px;
+    height: 540px;
+  }
+}
