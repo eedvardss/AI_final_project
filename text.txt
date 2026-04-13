@@ -1,0 +1,5 @@
+“We split the solution into two phases because the assignment rules are different. First is exploration with 200 calls, where we can use floats, so we use that freedom to understand the surface better. We start with a coarse 10 by 10 grid over the full range to find promising regions, then refine several separated hotspots so we do not waste all calls in one small area, and finally we spend the remaining budget around the best region we found.
+
+To estimate unexplored nearby values, we use inverse distance weighting. That means nearby explored points influence the prediction more than far ones. We chose that because the API is a black box, so we wanted something simple, local, and explainable.
+
+Then for exploitation, we switch to integer coordinates only. We pick a strong integer start near the best explored area, but we also check that it still allows a full 10-step path. For each next move, we score the 8 neighboring tiles using the estimate and choose the best move that still leaves a valid no-revisit continuation path. So the method is greedy, but not blindly greedy. It balances global search, local refinement, and assignment constraints.”
