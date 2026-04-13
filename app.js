@@ -1,435 +1,20 @@
-﻿/**
- * app.js  Explore & Exploit Terminal
- * Student names: Kristers Krīgers, Edvards Markuss Selikovs, Kristofers Sondors
- *
- * Algorithm:
- *  Exploration (200 calls):
- *    Phase 1: 1010 coarse grid        100 calls
- *    Phase 2: Top-5 hotspot zoom        ~50 calls
- *    Phase 3: Dense patch around best   ~50 calls
- *
- *  Exploitation (10 calls, integer coords, 1 steps):
- *    Start at best integer point found in exploration.
- *    At each step, use IDW interpolation over all explored data
- *    to rank unvisited 8-directional neighbors, then move to the
- *    best predicted neighbor and confirm with a real API call.
- *    2026 RULE: no square may be revisited.
- */
+﻿'use strict';
 
-'use strict';
-
-/* 
-   CONFIG
- */
-const API_BASE = 'http://157.180.73.240';
-const LOCAL_PROXY_BASE = 'http://localhost:8787';
-const USE_LOCAL_PROXY = true;
-const API_CALL_DELAY_MS = 0; // Change delay here (UI control removed)
-
-const PORTS = {
-  test: [8080, 8081, 8082],
-  exam: [22001, 22002, 22003, 22004, 22005],
+// UI-only state, kept separate from algorithm core.
+state.viewMode = '2d';
+state.view3D = {
+  yaw: -0.85,                 // horizontal rotation
+  pitch: 0.95,                // vertical tilt
+  zoom: 1.0,                  // projection zoom
+  smoothPasses: 2,            // grid smoothing iterations
+  smoothStrength: 0.38,       // 0..1 blend towards neighbor mean
+  dragging: false,
+  lastX: 0,
+  lastY: 0,
 };
+state.logEntries = [];
+state.logCollapsed = false;
 
-const EXPLORE_BUDGET = 200;
-const EXPLOIT_STEPS  = 10;
-const XY_RANGE       = { min: -100, max: 100 };
-
-/* 
-   STATE
- */
-const state = {
-  port:             8080,
-  callDelay:        API_CALL_DELAY_MS, // ms between API calls
-  explored:         [],         // { x, y, z }[]
-  exploitPath:      [],         // { x, y, z }[]
-  visitedKeys:      new Set(),  // "x,y" for integer squares
-  explorationDone:  false,
-  exploitationDone: false,
-  running:          false,
-  totalCallCount:   0,
-  logEntries:       [],         // { ts, type, msg }[]
-};
-
-/* 
-   UTILITIES
- */
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-/** Clamp a value to [XY_RANGE.min, XY_RANGE.max] */
-const clamp = v => Math.max(XY_RANGE.min, Math.min(XY_RANGE.max, v));
-
-/** Integer key for the visited-squares set */
-const iKey = (x, y) => `${Math.round(x)},${Math.round(y)}`;
-
-/** String key used to deduplicate float-valued exploration samples */
-const fKey = (x, y) => `${x.toFixed(2)},${y.toFixed(2)}`;
-
-/* 
-   API LAYER
- */
-/**
- * Query the API at (x, y).
- * Returns the numeric z-score.
- * Throws 'CORS_ERROR' string on CORS failure.
- */
-async function queryAPI(x, y) {
-  const url = USE_LOCAL_PROXY
-    ? `${LOCAL_PROXY_BASE}/${state.port}/${x}/${y}`
-    : `${API_BASE}:${state.port}/${x}/${y}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const contentType = (res.headers.get('content-type') || '').toLowerCase();
-
-    if (contentType.includes('application/json')) {
-      const data = await res.json();
-      const raw = typeof data === 'number' ? data : data?.z;
-      const val = parseFloat(String(raw));
-      if (isNaN(val)) throw new Error(`Non-numeric JSON response: "${JSON.stringify(data)}"`);
-      return val;
-    }
-
-    const text = await res.text();
-    const val = parseFloat(text.trim());
-    if (isNaN(val)) throw new Error(`Non-numeric response: "${text}"`);
-    return val;
-  } catch (err) {
-    // Distinguish CORS / network errors from server errors
-    if (
-      err instanceof TypeError ||
-      err.message.includes('Failed to fetch') ||
-      err.message.includes('NetworkError')
-    ) {
-      throw new Error('CORS_ERROR');
-    }
-    throw err;
-  }
-}
-
-/* 
-   IDW INTERPOLATION
-   Inverse Distance Weighting with k nearest neighbours
- */
-/**
- * Estimate z at (x, y) using the explored dataset.
- * @param {number} x
- * @param {number} y
- * @param {Array}  points  - explored data {x,y,z}[]
- * @param {number} k       - number of nearest neighbours to use
- * @param {number} power   - distance weighting exponent (2 = classic IDW)
- */
-function estimateZ(x, y, points, k = 15, power = 2) {
-  if (points.length === 0) return 0;
-
-  // Squared distances (skip sqrt for speed; we only need ordering)
-  const ranked = points
-    .map(p => ({ p, d2: (p.x - x) ** 2 + (p.y - y) ** 2 }))
-    .sort((a, b) => a.d2 - b.d2)
-    .slice(0, Math.min(k, points.length));
-
-  // Exact hit
-  if (ranked[0].d2 < 1e-9) return ranked[0].p.z;
-
-  let wSum = 0, zSum = 0;
-  for (const { p, d2 } of ranked) {
-    const w = 1 / Math.pow(d2, power / 2);
-    wSum += w;
-    zSum += w * p.z;
-  }
-  return zSum / wSum;
-}
-
-/* 
-   EXPLORATION
- */
-/**
- * Main exploration routine.
- * Runs up to EXPLORE_BUDGET API calls in 3 phases.
- */
-async function runExploration() {
-  if (state.running) return;
-  state.running          = true;
-  state.explorationDone  = false;
-  state.exploitationDone = false;
-  state.explored         = [];
-  state.exploitPath      = [];
-  state.visitedKeys      = new Set();
-  state.totalCallCount   = 0;
-
-  const sampledSet = new Set(); // prevent duplicate float queries
-  let callCount = 0;
-
-  setStatus('running');
-  setBtnState(false, false);
-  showProgress(true);
-  updateProgress('PHASE 1', callCount, EXPLORE_BUDGET);
-  clearPathTable();
-
-  /**
-   * Internal: sample one point and store result.
-   * Returns the point object or null if skipped / errored.
-   */
-  async function sample(rawX, rawY) {
-    if (callCount >= EXPLORE_BUDGET) return null;
-
-    const x = parseFloat(clamp(rawX).toFixed(2));
-    const y = parseFloat(clamp(rawY).toFixed(2));
-    const key = fKey(x, y);
-
-    if (sampledSet.has(key)) return null;
-    sampledSet.add(key);
-    callCount++;
-
-    updateProgress(null, callCount, EXPLORE_BUDGET);
-
-    try {
-      const z = await queryAPI(x, y);
-      const pt = { x, y, z };
-      state.explored.push(pt);
-      logExplore(callCount, x, y, z);
-
-      // Re-render heatmap every 5 points during exploration (performance)
-      if (callCount % 5 === 0 || callCount <= 10) renderHeatmap();
-
-      await sleep(state.callDelay);
-      return pt;
-    } catch (err) {
-      if (err.message === 'CORS_ERROR') {
-        document.getElementById('cors-notice').style.display = 'block';
-        state.running = false;
-        setStatus('error');
-        setBtnState(true, false);
-        throw err;
-      }
-      log(`[ERROR] (${x},${y}): ${err.message}`, 'error');
-      return null;
-    }
-  }
-
-  try {
-    /*  Phase 1: 1010 coarse grid  */
-    log('[PHASE 1] 10x10 coarse grid (100 calls)...', 'phase');
-    const coarse = [-90, -70, -50, -30, -10, 10, 30, 50, 70, 90];
-    for (const x of coarse) {
-      for (const y of coarse) {
-        await sample(x, y);
-      }
-    }
-
-    /*  Phase 2: Zoom into top-5 hotspots  */
-    log('[PHASE 2] Refining top-5 hotspots (~50 calls)...', 'phase');
-    updateProgress('PHASE 2', callCount, EXPLORE_BUDGET);
-
-    // Collect hotspots that are well-separated (> 25 units apart)
-    const phase1Sorted = [...state.explored].sort((a, b) => b.z - a.z);
-    const hotspots = [];
-    for (const p of phase1Sorted) {
-      const tooClose = hotspots.some(
-        h => Math.hypot(h.x - p.x, h.y - p.y) < 25
-      );
-      if (!tooClose) {
-        hotspots.push(p);
-        if (hotspots.length >= 5) break;
-      }
-    }
-
-    // For each hotspot: sample a 33 ring at 6, 3 offsets
-    const phase2Offsets = [
-      [-6,-6],[-6, 0],[-6, 6],
-      [ 0,-6],         [ 0, 6],
-      [ 6,-6],[ 6, 0],[ 6, 6],
-      [-3,-3],[-3, 3],[ 3,-3],[ 3, 3],  // diagonals closer in
-    ];
-    for (const h of hotspots) {
-      for (const [dx, dy] of phase2Offsets) {
-        if (callCount >= 150) break;
-        await sample(h.x + dx, h.y + dy);
-      }
-      if (callCount >= 150) break;
-    }
-
-    /*  Phase 3: Dense patch around global best  */
-    log('[PHASE 3] Dense local search around global best (~50 calls)...', 'phase');
-    updateProgress('PHASE 3', callCount, EXPLORE_BUDGET);
-
-    // Re-find global best (including phase 2 data)
-    const globalBest = state.explored.reduce(
-      (best, p) => (p.z > best.z ? p : best)
-    );
-
-    // 77 grid with step 3, centered on globalBest
-    const step3 = 3;
-    for (let dx = -9; dx <= 9; dx += step3) {
-      for (let dy = -9; dy <= 9; dy += step3) {
-        if (callCount >= EXPLORE_BUDGET) break;
-        await sample(globalBest.x + dx, globalBest.y + dy);
-      }
-      if (callCount >= EXPLORE_BUDGET) break;
-    }
-
-    // Fill remaining budget with random points near best (up to 200)
-    let attempts = 0;
-    while (callCount < EXPLORE_BUDGET && attempts < 100) {
-      attempts++;
-      const angle = Math.random() * Math.PI * 2;
-      const radius = Math.random() * 15 + 2;
-      await sample(
-        globalBest.x + Math.cos(angle) * radius,
-        globalBest.y + Math.sin(angle) * radius
-      );
-    }
-
-    /*  Done  */
-    renderHeatmap();
-    state.explorationDone = true;
-    state.running = false;
-    setStatus('done');
-    setBtnState(true, true);
-    showProgress(false);
-
-    const peak = state.explored.reduce((best, p) => (p.z > best.z ? p : best));
-    log(`[COMPLETE] ${state.explored.length} points sampled.`, 'success');
-    log(
-      `[PEAK] (${peak.x}, ${peak.y}) -> z = ${peak.z.toFixed(4)}`,
-      'highlight'
-    );
-    updateBestPoint(peak);
-    updateExportButtons();
-    updateCanvasInfo();
-
-  } catch (err) {
-    // CORS or unexpected error  already handled in sample()
-    if (err.message !== 'CORS_ERROR') {
-      log(`[FATAL] ${err.message}`, 'error');
-      setStatus('error');
-    }
-    state.running = false;
-    showProgress(false);
-    setBtnState(true, false);
-  }
-}
-
-/* 
-   EXPLOITATION
- */
-/**
- * Greedy 10-step exploitation.
- * Uses IDW estimates from explored data to rank unvisited neighbours,
- * queries the best predicted neighbour at each step (1 call/step).
- * Strictly enforces the 2026 no-revisit rule.
- */
-async function runExploitation() {
-  if (!state.explorationDone || state.running) return;
-  state.running          = true;
-  state.exploitationDone = false;
-  state.exploitPath      = [];
-  state.visitedKeys      = new Set();
-
-  setStatus('running');
-  setBtnState(false, false);
-  clearPathTable();
-
-  try {
-    /*  Find best integer starting point  */
-    // Check 55 integer neighborhood around the best float point
-    const floatBest = state.explored.reduce((b, p) => (p.z > b.z ? p : b));
-    const cx0 = Math.round(floatBest.x);
-    const cy0 = Math.round(floatBest.y);
-
-    let startX = cx0, startY = cy0;
-    let startEst = estimateZ(cx0, cy0, state.explored);
-
-    for (let dx = -3; dx <= 3; dx++) {
-      for (let dy = -3; dy <= 3; dy++) {
-        const est = estimateZ(cx0 + dx, cy0 + dy, state.explored);
-        if (est > startEst) {
-          startEst = est;
-          startX = cx0 + dx;
-          startY = cy0 + dy;
-        }
-      }
-    }
-
-    log(`[EXPLOIT] Starting at integer (${startX}, ${startY}) - est z = ${startEst.toFixed(4)}`, 'phase');
-
-    /*  Step 0: Query starting point  */
-    const z0 = await queryAPI(startX, startY);
-    const step0 = { x: startX, y: startY, z: z0 };
-    state.exploitPath.push(step0);
-    state.visitedKeys.add(iKey(startX, startY));
-    log(`[STEP 0] (${startX}, ${startY}) -> z = ${z0.toFixed(4)}`, 'exploit');
-    appendPathRow(0, step0);
-    renderHeatmap();
-    await sleep(state.callDelay);
-
-    /*  Steps 19: Greedy walk  */
-    for (let step = 1; step < EXPLOIT_STEPS; step++) {
-      const cur = state.exploitPath[state.exploitPath.length - 1];
-
-      // Build candidate list: 8 directional neighbours, unvisited
-      const candidates = [];
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          if (dx === 0 && dy === 0) continue;
-          const nx = cur.x + dx;
-          const ny = cur.y + dy;
-          // Skip out-of-bounds
-          if (nx < XY_RANGE.min || nx > XY_RANGE.max) continue;
-          if (ny < XY_RANGE.min || ny > XY_RANGE.max) continue;
-          const key = iKey(nx, ny);
-          if (!state.visitedKeys.has(key)) {
-            candidates.push({ x: nx, y: ny, est: estimateZ(nx, ny, state.explored) });
-          }
-        }
-      }
-
-      if (candidates.length === 0) {
-        log(`[WARN] No unvisited neighbours at step ${step} - stopping early.`, 'warning');
-        break;
-      }
-
-      // Sort by estimated z descending; pick the best
-      candidates.sort((a, b) => b.est - a.est);
-      const best = candidates[0];
-
-      const realZ = await queryAPI(best.x, best.y);
-      const pt = { x: best.x, y: best.y, z: realZ };
-      state.exploitPath.push(pt);
-      state.visitedKeys.add(iKey(best.x, best.y));
-
-      log(
-        `[STEP ${step}] (${best.x}, ${best.y}) -> z = ${realZ.toFixed(4)}` +
-        `  [est: ${best.est.toFixed(4)}]`,
-        'exploit'
-      );
-      appendPathRow(step, pt);
-      renderHeatmap();
-      await sleep(state.callDelay);
-    }
-
-    /*  Final total  */
-    const total = state.exploitPath.reduce((s, p) => s + p.z, 0);
-    log(`[RESULT] ${state.exploitPath.length} steps | SUM = ${total.toFixed(4)}`, 'success');
-    showTotalSum(total);
-    updateExportButtons();
-
-    state.exploitationDone = true;
-    state.running = false;
-    setStatus('done');
-    setBtnState(true, true);
-
-  } catch (err) {
-    if (err.message === 'CORS_ERROR') {
-      document.getElementById('cors-notice').style.display = 'block';
-    } else {
-      log(`[FATAL] ${err.message}`, 'error');
-    }
-    setStatus('error');
-    state.running = false;
-    setBtnState(true, state.explorationDone);
-  }
-}
 
 /* 
    HEATMAP RENDERING
@@ -479,6 +64,14 @@ function heatColor(t, alpha = 1) {
 }
 
 let lastRenderCount = 0;
+
+function renderVisualization() {
+  if (state.viewMode === '3d') {
+    renderTopography3D();
+  } else {
+    renderHeatmap();
+  }
+}
 
 function renderHeatmap() {
   const canvas = document.getElementById('heatmap');
@@ -633,6 +226,216 @@ function renderHeatmap() {
   //  8. Colorbar 
   if (pts.length > 0) {
     drawColorbar(ctx, W - CANVAS_PAD.r + 6, CANVAS_PAD.t, 10, PH, zMin, zMax);
+  }
+
+  lastRenderCount = pts.length;
+}
+
+function renderTopography3D() {
+  const canvas = document.getElementById('heatmap');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const pts = state.explored;
+  const zs = pts.map(p => p.z);
+  const zMin = zs.length ? Math.min(...zs) : 0;
+  const zMax = zs.length ? Math.max(...zs) : 1;
+  const zRng = Math.max(zMax - zMin, 1e-6);
+  const norm = z => (z - zMin) / zRng;
+
+  ctx.fillStyle = '#070a0e';
+  ctx.fillRect(0, 0, W, H);
+
+  const res = pts.length >= 150 ? 40 : (pts.length >= 80 ? 34 : 28);
+  const yaw = state.view3D.yaw;
+  const pitch = state.view3D.pitch;
+  const cYaw = Math.cos(yaw), sYaw = Math.sin(yaw);
+  const cPitch = Math.cos(pitch), sPitch = Math.sin(pitch);
+
+  const projectUnit = (xN, yN, zVal) => {
+    const zN = (norm(zVal) - 0.5) * 2;
+
+    // Rotate in XY plane (yaw), then tilt with height (pitch).
+    const x1 = xN * cYaw - yN * sYaw;
+    const y1 = xN * sYaw + yN * cYaw;
+    const y2 = y1 * cPitch - zN * sPitch;
+    const depth = y1 * sPitch + zN * cPitch;
+    return { sx: x1, sy: y2, depth };
+  };
+
+  const grid = new Array(res);
+  for (let gy = 0; gy < res; gy++) {
+    grid[gy] = new Array(res);
+    const y = XY_RANGE.min + (gy / (res - 1)) * (XY_RANGE.max - XY_RANGE.min);
+    for (let gx = 0; gx < res; gx++) {
+      const x = XY_RANGE.min + (gx / (res - 1)) * (XY_RANGE.max - XY_RANGE.min);
+      const ez = pts.length ? estimateZ(x, y, pts, 10) : 0;
+      grid[gy][gx] = { x, y, z: ez };
+    }
+  }
+
+  // Smooth height field to reduce jagged triangles.
+  for (let pass = 0; pass < state.view3D.smoothPasses; pass++) {
+    const next = new Array(res);
+    for (let gy = 0; gy < res; gy++) {
+      next[gy] = new Array(res);
+      for (let gx = 0; gx < res; gx++) {
+        const cur = grid[gy][gx];
+        let sum = cur.z;
+        let count = 1;
+        for (let oy = -1; oy <= 1; oy++) {
+          for (let ox = -1; ox <= 1; ox++) {
+            if (ox === 0 && oy === 0) continue;
+            const ny = gy + oy;
+            const nx = gx + ox;
+            if (ny < 0 || ny >= res || nx < 0 || nx >= res) continue;
+            sum += grid[ny][nx].z;
+            count++;
+          }
+        }
+        const mean = sum / count;
+        const s = state.view3D.smoothStrength;
+        next[gy][gx] = { ...cur, z: cur.z * (1 - s) + mean * s };
+      }
+    }
+    for (let gy = 0; gy < res; gy++) {
+      for (let gx = 0; gx < res; gx++) {
+        grid[gy][gx].z = next[gy][gx].z;
+      }
+    }
+  }
+
+  // First projection pass to compute bounds.
+  let minSX = Infinity, maxSX = -Infinity;
+  let minSY = Infinity, maxSY = -Infinity;
+  for (let gy = 0; gy < res; gy++) {
+    for (let gx = 0; gx < res; gx++) {
+      const p = grid[gy][gx];
+      const pr = projectUnit(p.x / 100, p.y / 100, p.z);
+      p.sx = pr.sx;
+      p.sy = pr.sy;
+      p.depth = pr.depth;
+      p.t = norm(p.z);
+      if (pr.sx < minSX) minSX = pr.sx;
+      if (pr.sx > maxSX) maxSX = pr.sx;
+      if (pr.sy < minSY) minSY = pr.sy;
+      if (pr.sy > maxSY) maxSY = pr.sy;
+    }
+  }
+
+  // Auto-center and scale to viewport.
+  const padX = 34;
+  const padY = 46;
+  const spanX = Math.max(maxSX - minSX, 1e-6);
+  const spanY = Math.max(maxSY - minSY, 1e-6);
+  const baseScale = Math.min((W - padX * 2) / spanX, (H - padY * 2) / spanY);
+  const scale = baseScale * state.view3D.zoom;
+  const offX = W * 0.5 - ((minSX + maxSX) * 0.5) * scale;
+  const offY = H * 0.54 - ((minSY + maxSY) * 0.5) * scale;
+
+  for (let gy = 0; gy < res; gy++) {
+    for (let gx = 0; gx < res; gx++) {
+      const p = grid[gy][gx];
+      p.px = p.sx * scale + offX;
+      p.py = p.sy * scale + offY;
+    }
+  }
+
+  // Draw quads sorted by depth (back to front).
+  const faces = [];
+  for (let gy = 0; gy < res - 1; gy++) {
+    for (let gx = 0; gx < res - 1; gx++) {
+      const p00 = grid[gy][gx];
+      const p10 = grid[gy][gx + 1];
+      const p11 = grid[gy + 1][gx + 1];
+      const p01 = grid[gy + 1][gx];
+      faces.push({
+        p00, p10, p11, p01,
+        tAvg: (p00.t + p10.t + p11.t + p01.t) / 4,
+        depth: (p00.depth + p10.depth + p11.depth + p01.depth) / 4,
+      });
+    }
+  }
+  faces.sort((a, b) => a.depth - b.depth);
+
+  for (const f of faces) {
+    ctx.beginPath();
+    ctx.moveTo(f.p00.px, f.p00.py);
+    ctx.lineTo(f.p10.px, f.p10.py);
+    ctx.lineTo(f.p11.px, f.p11.py);
+    ctx.lineTo(f.p01.px, f.p01.py);
+    ctx.closePath();
+    ctx.fillStyle = heatColor(f.tAvg, 0.92);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 0.45;
+    ctx.stroke();
+  }
+
+  // XY boundary frame.
+  const c00 = grid[0][0];
+  const c10 = grid[0][res - 1];
+  const c11 = grid[res - 1][res - 1];
+  const c01 = grid[res - 1][0];
+  ctx.strokeStyle = 'rgba(255,255,255,0.26)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(c00.px, c00.py);
+  ctx.lineTo(c10.px, c10.py);
+  ctx.lineTo(c11.px, c11.py);
+  ctx.lineTo(c01.px, c01.py);
+  ctx.closePath();
+  ctx.stroke();
+
+  const projectPoint = (x, y, z) => {
+    const pr = projectUnit(x / 100, y / 100, z);
+    return { px: pr.sx * scale + offX, py: pr.sy * scale + offY };
+  };
+
+  // Explored samples as bright points.
+  for (const p of pts) {
+    const { px, py } = projectPoint(p.x, p.y, p.z);
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    ctx.beginPath();
+    ctx.arc(px, py, 1.45, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Exploitation path in 3D.
+  const ep = state.exploitPath;
+  if (ep.length > 0) {
+    ctx.save();
+    ctx.shadowColor = '#00d4aa';
+    ctx.shadowBlur = 9;
+    ctx.strokeStyle = '#00d4aa';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ep.forEach((p, i) => {
+      const pr = projectPoint(p.x, p.y, p.z);
+      i === 0 ? ctx.moveTo(pr.px, pr.py) : ctx.lineTo(pr.px, pr.py);
+    });
+    ctx.stroke();
+    ctx.restore();
+
+    ep.forEach((p, i) => {
+      const pr = projectPoint(p.x, p.y, p.z);
+      const r = i === 0 ? 5 : 4;
+      ctx.fillStyle = i === 0 ? '#ffca3a' : '#00d4aa';
+      ctx.beginPath();
+      ctx.arc(pr.px, pr.py, r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // 3D info label
+  ctx.fillStyle = 'rgba(200,214,229,0.66)';
+  ctx.font = '11px JetBrains Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText('3D TOPOGRAPHY VIEW', 12, 18);
+  if (pts.length > 0) {
+    const fmt = v => Math.abs(v) >= 10000 ? v.toExponential(1) : v.toFixed(2);
+    ctx.fillText(`z: [${fmt(zMin)}, ${fmt(zMax)}]`, 12, 34);
+    ctx.fillText('drag: rotate  |  wheel: zoom  |  dblclick: reset', 12, 50);
   }
 
   lastRenderCount = pts.length;
@@ -858,6 +661,17 @@ function updatePortUI() {
   });
 }
 
+function setLogCollapsed(collapsed) {
+  state.logCollapsed = collapsed;
+  document.body.classList.toggle('log-collapsed', collapsed);
+
+  const btn = document.getElementById('btn-toggle-log');
+  if (btn) {
+    btn.textContent = collapsed ? 'EXPAND' : 'COLLAPSE';
+    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  }
+}
+
 /* 
    EVENT LISTENERS
  */
@@ -883,6 +697,70 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePortUI();
   });
 
+  //  Visualization mode (2D / 3D)
+  document.getElementById('view-toggle').addEventListener('click', e => {
+    const btn = e.target.closest('.view-btn');
+    if (!btn) return;
+    const mode = btn.dataset.view;
+    if (mode !== '2d' && mode !== '3d') return;
+
+    state.viewMode = mode;
+    document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const canvas = document.getElementById('heatmap');
+    canvas.style.cursor = mode === '3d' ? 'grab' : 'default';
+    renderVisualization();
+  });
+
+  //  3D canvas interactions: drag rotate, wheel zoom, double-click reset
+  const canvas = document.getElementById('heatmap');
+  canvas.addEventListener('pointerdown', e => {
+    if (state.viewMode !== '3d') return;
+    state.view3D.dragging = true;
+    state.view3D.lastX = e.clientX;
+    state.view3D.lastY = e.clientY;
+    canvas.style.cursor = 'grabbing';
+    canvas.setPointerCapture(e.pointerId);
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if (state.viewMode !== '3d' || !state.view3D.dragging) return;
+    const dx = e.clientX - state.view3D.lastX;
+    const dy = e.clientY - state.view3D.lastY;
+    state.view3D.lastX = e.clientX;
+    state.view3D.lastY = e.clientY;
+
+    state.view3D.yaw += dx * 0.009;
+    state.view3D.pitch = clampNum(state.view3D.pitch + dy * 0.006, 0.25, 1.45);
+    renderVisualization();
+  });
+
+  const stopDrag = () => {
+    state.view3D.dragging = false;
+    if (state.viewMode === '3d') {
+      canvas.style.cursor = 'grab';
+    }
+  };
+  canvas.addEventListener('pointerup', stopDrag);
+  canvas.addEventListener('pointercancel', stopDrag);
+  canvas.addEventListener('pointerleave', stopDrag);
+
+  canvas.addEventListener('wheel', e => {
+    if (state.viewMode !== '3d') return;
+    e.preventDefault();
+    const factor = Math.exp(-e.deltaY * 0.0011);
+    state.view3D.zoom = clampNum(state.view3D.zoom * factor, 0.58, 2.6);
+    renderVisualization();
+  }, { passive: false });
+
+  canvas.addEventListener('dblclick', () => {
+    if (state.viewMode !== '3d') return;
+    state.view3D.yaw = -0.85;
+    state.view3D.pitch = 0.95;
+    state.view3D.zoom = 1.0;
+    renderVisualization();
+  });
+
   //  Run Exploration 
   document.getElementById('btn-explore').addEventListener('click', () => {
     if (!state.running) runExploration();
@@ -904,10 +782,16 @@ document.addEventListener('DOMContentLoaded', () => {
     state.logEntries = [];
   });
 
+  document.getElementById('btn-toggle-log').addEventListener('click', () => {
+    setLogCollapsed(!state.logCollapsed);
+  });
+
   //  Initial render 
   setStatus('idle');
   setBtnState(true, false);
   updatePortUI();
   updateExportButtons();
-  renderHeatmap(); // blank canvas with grid
+  setLogCollapsed(false);
+  document.getElementById('heatmap').style.cursor = 'default';
+  renderVisualization(); // blank canvas with grid
 });

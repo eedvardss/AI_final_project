@@ -32,6 +32,10 @@
     <section class="canvas-section">
       <div class="canvas-label-row">
         <span class="canvas-info" id="canvas-info">awaiting data…</span>
+        <div class="view-toggle" id="view-toggle" aria-label="Visualization mode">
+          <button class="view-btn active" data-view="2d">2D</button>
+          <button class="view-btn" data-view="3d">3D</button>
+        </div>
       </div>
       <div class="canvas-wrapper">
         <canvas id="heatmap" width="600" height="600"></canvas>
@@ -72,6 +76,7 @@
       <div class="panel" id="panel-controls">
         <div class="panel-header">
           <span class="panel-tag">RUN CONTROLS</span>
+          <span id="status-text" class="status-idle">IDLE</span>
         </div>
         <div class="panel-body">
           <button class="run-btn" id="btn-explore">▶ RUN EXPLORATION</button>
@@ -145,13 +150,17 @@
   <footer class="log-footer">
     <div class="log-header-row">
       <span class="panel-tag">LIVE LOG</span>
-      <button class="log-clear-btn" id="btn-clear-log">CLR</button>
+      <div class="log-actions">
+        <button class="log-toggle-btn" id="btn-toggle-log" aria-expanded="true">COLLAPSE</button>
+        <button class="log-clear-btn" id="btn-clear-log">CLR</button>
+      </div>
     </div>
     <div class="log-body" id="log-body">
       <div class="log-entry info">System ready. Select environment/port and press RUN EXPLORATION.</div>
     </div>
   </footer>
 
+  <script src="algorithm.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

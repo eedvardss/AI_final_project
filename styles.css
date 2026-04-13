@@ -46,6 +46,9 @@
   /* Geometry — Swiss: 0 border radius, sharp corners */
   --radius:       0px;
   --panel-shadow: none;
+  --header-height: 48px;
+  --log-height: 180px;
+  --log-height-collapsed: 38px;
 }
 
 /* ── Base ── */
@@ -59,6 +62,10 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+body.log-collapsed {
+  --log-height: var(--log-height-collapsed);
+}
+
 /* Remove decorative noise overlay */
 body::before { display: none; }
 
@@ -68,7 +75,7 @@ body::before { display: none; }
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  height: 48px;
+  height: var(--header-height);
   background: var(--bg-panel);
   border-bottom: 2px solid var(--border-strong);
   position: relative;
@@ -124,11 +131,12 @@ body::before { display: none; }
   display: grid;
   grid-template-columns: 620px 1fr;
   gap: 0;
-  height: calc(100vh - 48px - 180px);
+  height: calc(100vh - var(--header-height) - var(--log-height));
   min-height: 640px;
   position: relative;
   z-index: 1;
   overflow: hidden;
+  transition: height 0.18s ease;
 }
 
 /* ── Canvas Section ── */
@@ -154,6 +162,41 @@ body::before { display: none; }
   font-size: 11px;
   color: var(--text-muted);
   letter-spacing: 0.04em;
+}
+
+.view-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--border-strong);
+}
+
+.view-btn {
+  background: var(--bg-input);
+  border: none;
+  border-right: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 6px 10px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.15s, color 0.15s;
+}
+
+.view-btn:last-child {
+  border-right: none;
+}
+
+.view-btn:hover {
+  background: var(--bg-panel-alt);
+  color: var(--text-primary);
+}
+
+.view-btn.active {
+  background: var(--text-primary);
+  color: var(--bg-panel);
 }
 
 .canvas-wrapper {
@@ -649,13 +692,15 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 /* ── Log Footer ── */
 .log-footer {
-  height: 180px;
+  height: var(--log-height);
   background: var(--bg-panel);
   border-top: 2px solid var(--border-strong);
   display: flex;
   flex-direction: column;
   position: relative;
   z-index: 5;
+  overflow: hidden;
+  transition: height 0.18s ease;
 }
 
 .log-header-row {
@@ -668,19 +713,40 @@ input[type="range"]::-webkit-slider-thumb:hover {
   flex-shrink: 0;
 }
 
+.log-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-toggle-btn,
 .log-clear-btn {
   font-family: var(--font-display);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--text-muted);
   background: transparent;
-  border: 1px solid var(--border);
   padding: 3px 8px;
   border-radius: 0;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   text-transform: uppercase;
+}
+
+.log-toggle-btn {
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+}
+
+.log-toggle-btn:hover {
+  background: var(--text-primary);
+  color: #FFFFFF;
+  border-color: var(--border-strong);
+}
+
+.log-clear-btn {
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .log-clear-btn:hover {
@@ -696,6 +762,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
   display: flex;
   flex-direction: column;
   gap: 1px;
+}
+
+body.log-collapsed .log-body {
+  display: none;
 }
 
 .log-body::-webkit-scrollbar { width: 3px; }
@@ -727,6 +797,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 @media (max-width: 1100px) {
   .main-layout {
     grid-template-columns: 560px 1fr;
+    min-height: 560px;
   }
   #heatmap {
     width: 540px;
